@@ -4,6 +4,8 @@ Implementation of YOLOv3 architecture
 
 import torch
 import torch.nn as nn
+from torchsummary import summary
+from capsnet import *
 
 """ 
 Information about architecture config:
@@ -29,30 +31,43 @@ config = [
     # 104x104x128
     ["B", 2],
     (256, 3, 2),
-    # 57x57x256
+    # 52x52x256
     ["B", 8],
     (512, 3, 2),
-    # 29x29x512
+    # 26x26x512
     ["B", 8],
     (1024, 3, 2),
-    # 15x15x1024
+    # 13x13x1024
     ["B", 4],  # To this point is Darknet-53
     (512, 1, 1),
-    # 15x15x512
+    # 13x13x512
     (1024, 3, 1),
+    # 13x13x1024
+    "S",  
+    # out_channels = (num_classes + 5) * 3
+    # [batch_size, 3, 13, 13, numclasses+5]
+    (256, 1, 1),
+    # 13x13x256
+    "U",
+    # 26x26x256
+    (256, 1, 1),
+    # 26x26x256
+    (512, 3, 1),
+    # 26x26x512
     "S",
     # out_channels = (num_classes + 5) * 3
-    (256, 1, 1),
-
-    "U",
-    (256, 1, 1),
-    (512, 3, 1),
-    "S",
+    # [batch_size, 3, 26, 26, numclasses+5]
     (128, 1, 1),
+    # 26x26x128
     "U",
+    # 52x52x128
     (128, 1, 1),
+    # 52x52x128
     (256, 3, 1),
+    # 52x52x256
     "S",
+    # out_channels = (num_classes + 5) * 3
+    # [batch_size, 3, 52, 52, numclasses+5]
 ]
 
 
@@ -108,6 +123,9 @@ class ScalePrediction(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, x):
+        # print(f'x_pred_shape:{self.pred(x).shape}')
+        # print(f'x_pred_reshape:{self.pred(x).reshape(x.shape[0], 3, self.num_classes + 5, x.shape[2], x.shape[3]).shape}')
+        # print(f'x_pred_permute:{self.pred(x).reshape(x.shape[0], 3, self.num_classes + 5, x.shape[2], x.shape[3]).permute(0, 1, 3, 4, 2).shape}')
         return (
             self.pred(x)
             .reshape(x.shape[0], 3, self.num_classes + 5, x.shape[2], x.shape[3])
@@ -185,7 +203,11 @@ if __name__ == "__main__":
     model = YOLOv3(num_classes=num_classes)
     x = torch.randn((2, 3, IMAGE_SIZE, IMAGE_SIZE))
     out = model(x)
+
+    # print(model)
+
     assert model(x)[0].shape == (2, 3, IMAGE_SIZE//32, IMAGE_SIZE//32, num_classes + 5)
     assert model(x)[1].shape == (2, 3, IMAGE_SIZE//16, IMAGE_SIZE//16, num_classes + 5)
     assert model(x)[2].shape == (2, 3, IMAGE_SIZE//8, IMAGE_SIZE//8, num_classes + 5)
     print("Success!")
+    

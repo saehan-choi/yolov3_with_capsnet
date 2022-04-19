@@ -8,6 +8,7 @@ import torch.optim as optim
 
 from model import YOLOv3
 from tqdm import tqdm
+
 from utils import (
     mean_average_precision,
     cells_to_bboxes,
@@ -18,6 +19,7 @@ from utils import (
     get_loaders,
     plot_couple_examples
 )
+
 from loss import YoloLoss
 import warnings
 warnings.filterwarnings("ignore")
@@ -34,7 +36,9 @@ def train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors):
             y[1].to(config.DEVICE),
             y[2].to(config.DEVICE),
         )
-        
+        # print(f'x:{x}')
+        # print(f'y:{y}')
+
         with torch.cuda.amp.autocast():
             out = model(x)
             loss = (
@@ -75,7 +79,30 @@ def main():
     scaled_anchors = (
         torch.tensor(config.ANCHORS)
         * torch.tensor(config.S).unsqueeze(1).unsqueeze(1).repeat(1, 3, 2)
+
+        # ANCHORS = [
+        #     [(0.28, 0.22), (0.38, 0.48), (0.9, 0.78)],
+        #     [(0.07, 0.15), (0.15, 0.11), (0.14, 0.29)],
+        #     [(0.02, 0.03), (0.04, 0.07), (0.08, 0.06)],
+        # ]  # Note these have been rescaled to be between [0, 1]
+
+        # S = [IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8]
+
+        # print(torch.tensor(config.S).unsqueeze(1).unsqueeze(1))
+        # tensor([[[13, 13],
+        #          [13, 13],
+        #          [13, 13]],
+
+        #         [[26, 26],
+        #          [26, 26],
+        #          [26, 26]],
+
+        #         [[52, 52],
+        #          [52, 52],
+        #          [52, 52]]])
     ).to(config.DEVICE)
+
+
 
     for epoch in range(config.NUM_EPOCHS):
         #plot_couple_examples(model, test_loader, 0.6, 0.5, scaled_anchors)

@@ -46,7 +46,7 @@ def squash(x):
     # print(f'original    x shape:{x.size()}')
     lengths2 = x.pow(2).sum(dim=2)
     lengths = lengths2.sqrt()
-    print(lengths.size())
+    # print(lengths.size())
     x = x * (lengths2 / (1 + lengths2) / lengths).view(x.size(0), x.size(1), 1)
     # print(f'weight vector shape:{(lengths2 / (1 + lengths2) / lengths).view(x.size(0), x.size(1), 1).size()}')
     # print(f'after squashX shape:{x.size()}')
@@ -392,3 +392,6 @@ if __name__ == '__main__':
                    '{:03d}_model_dict_{}routing_reconstruction{}.pt'.format(epoch, args.routing_iterations,
                                                                              args.with_reconstruction))
 
+
+
+# INPUT과 똑같은 OUTPUT이 나오도록 CUSTOMIZING하면 이식하기 수월하다.

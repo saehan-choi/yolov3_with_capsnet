@@ -77,3 +77,9 @@ class YoloLoss(nn.Module):
             + self.lambda_noobj * no_object_loss
             + self.lambda_class * class_loss
         )
+
+
+# self.lambda_box = 10
+# self.lambda_obj = 1
+# self.lambda_noobj = 10
+# self.lambda_class = 1
