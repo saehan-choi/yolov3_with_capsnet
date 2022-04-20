@@ -3,17 +3,21 @@ import cv2
 import torch
 
 from albumentations.pytorch import ToTensorV2
-from utils import seed_everything
+# from utils import seed_everything
 
 DATASET = 'PASCAL_VOC'
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # seed_everything()  # If you want deterministic behavior
-NUM_WORKERS = 4
-BATCH_SIZE = 4
+NUM_WORKERS = 2
+BATCH_SIZE = 8
 
 IMAGE_SIZE = 416
 NUM_CLASSES = 20
-LEARNING_RATE = 1e-5
+
+# LEARNING_RATE = 1e-5
+# 3e-4로 수정했습니다.
+LEARNING_RATE = 3e-4
+
 WEIGHT_DECAY = 1e-4
 NUM_EPOCHS = 100
 CONF_THRESHOLD = 0.05
@@ -25,9 +29,18 @@ PIN_MEMORY = True
 LOAD_MODEL = False
 
 SAVE_MODEL = True
-CHECKPOINT_FILE = "checkpoint.pth.tar"
-IMG_DIR = DATASET + "/images/"
-LABEL_DIR = DATASET + "/labels/"
+CHECKPOINT_FILE = "./plot_test/checkpoint.pt"
+
+# 실제테스트시 사용
+# IMG_DIR = DATASET + "/images/"
+# LABEL_DIR = DATASET + "/labels/"
+# CSV_DIR = "/train.csv"
+
+# test시 사용
+IMG_DIR = DATASET + "/images_test/"
+LABEL_DIR = DATASET + "/labels_test/"
+CSV_DIR = "/train_test.csv"
+
 
 ANCHORS = [
     [(0.28, 0.22), (0.38, 0.48), (0.9, 0.78)],

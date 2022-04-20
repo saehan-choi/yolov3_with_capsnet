@@ -1,2 +1,4 @@
 PASCAL_VOC/
 __pycache__/
+yolov3_pascal_78.1map.pth.tar
+test_image2.jpg

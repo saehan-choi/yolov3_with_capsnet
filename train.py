@@ -68,7 +68,7 @@ def main():
     scaler = torch.cuda.amp.GradScaler()
 
     train_loader, test_loader, train_eval_loader = get_loaders(
-        train_csv_path=config.DATASET + "/train.csv", test_csv_path=config.DATASET + "/test.csv"
+        train_csv_path=config.DATASET + config.CSV_DIR, test_csv_path=config.DATASET + "/test.csv"
     )
 
     if config.LOAD_MODEL:
@@ -105,16 +105,16 @@ def main():
 
 
     for epoch in range(config.NUM_EPOCHS):
-        #plot_couple_examples(model, test_loader, 0.6, 0.5, scaled_anchors)
+        plot_couple_examples(model, test_loader, 0.6, 0.5, scaled_anchors)
         train_fn(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors)
 
-        #if config.SAVE_MODEL:
-        #    save_checkpoint(model, optimizer, filename=f"checkpoint.pth.tar")
+        if config.SAVE_MODEL:
+           save_checkpoint(model, optimizer, filename=config.CHECKPOINT_FILE)
 
-        #print(f"Currently epoch {epoch}")
-        #print("On Train Eval loader:")
-        #print("On Train loader:")
-        #check_class_accuracy(model, train_loader, threshold=config.CONF_THRESHOLD)
+        print(f"Currently epoch {epoch}")
+        print("On Train Eval loader:")
+        print("On Train loader:")
+        check_class_accuracy(model, train_loader, threshold=config.CONF_THRESHOLD)
 
         if epoch > 0 and epoch % 3 == 0:
             check_class_accuracy(model, test_loader, threshold=config.CONF_THRESHOLD)

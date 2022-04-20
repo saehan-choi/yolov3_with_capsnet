@@ -340,17 +340,31 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
                       object score, bounding box coordinates
     """
     BATCH_SIZE = predictions.shape[0]
+    # predictions => [1, 3, 52, 52, 25], [1, 3, 26, 26, 25], [1, 3, 13, 13, 25]
     num_anchors = len(anchors)
     box_predictions = predictions[..., 1:5]
+    # 맨마지막 tensor에서 4개 만을 추출하네요
+    # [1, 3, 13, 13, 25] -> [1, 3, 13, 13, 4]
+
+
     if is_preds:
         anchors = anchors.reshape(1, len(anchors), 1, 1, 2)
         box_predictions[..., 0:2] = torch.sigmoid(box_predictions[..., 0:2])
+        # 첫 두개의 텐서에는 sigmoid를 적용
         box_predictions[..., 2:] = torch.exp(box_predictions[..., 2:]) * anchors
+        # print(anchors.size())
+        # torch.Size([1, 3, 1, 1, 2])
+
+        # 큰거는 크게 작은것은 작게하고 anchor와 곱해주네요
+        # 이후 두개의 텐서에는 e^() * anchor 값을 적용 끝쪽에만 곱해지네요 anchors가 마지막 텐서에밖에 없습니다
         scores = torch.sigmoid(predictions[..., 0:1])
         best_class = torch.argmax(predictions[..., 5:], dim=-1).unsqueeze(-1)
+        # class중에 하나를 선택합니다
+
     else:
         scores = predictions[..., 0:1]
         best_class = predictions[..., 5:6]
+
 
     cell_indices = (
         torch.arange(S)
@@ -358,10 +372,36 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
         .unsqueeze(-1)
         .to(predictions.device)
     )
+    # print(cell_indices)
+    #    [[ 0],
+    #    [ 1],
+    #    [ 2],
+    #    ...,
+    #    [49],
+    #    [50],
+    #    [51]....
+
     x = 1 / S * (box_predictions[..., 0:1] + cell_indices)
     y = 1 / S * (box_predictions[..., 1:2] + cell_indices.permute(0, 1, 3, 2, 4))
     w_h = 1 / S * box_predictions[..., 2:4]
+
     converted_bboxes = torch.cat((best_class, scores, x, y, w_h), dim=-1).reshape(BATCH_SIZE, num_anchors * S * S, 6)
+    # print(best_class.size())
+    # torch.Size([1, 3, 13, 13, 1])
+    # 13 or 26 or 52
+
+    # print(scores.size())
+    # torch.Size([1, 3, 13, 13, 1])
+
+    # print(w_h.size())
+    # torch.Size([1, 3, 13, 13, 2])
+
+    # print(x.size())
+    # torch.Size([1, 3, 13, 13, 1])
+    
+    # print(y.size())
+    # torch.Size([1, 3, 13, 13, 1])
+    
     return converted_bboxes.tolist()
 
 def check_class_accuracy(model, loader, threshold):
