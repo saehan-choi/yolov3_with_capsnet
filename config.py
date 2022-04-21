@@ -4,6 +4,7 @@ import torch
 
 from albumentations.pytorch import ToTensorV2
 # from utils import seed_everything
+import argparse
 
 DATASET = 'PASCAL_VOC'
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -195,3 +196,35 @@ COCO_LABELS = ['person',
  'hair drier',
  'toothbrush'
 ]
+
+
+def capsnet_parser():
+    parser = argparse.ArgumentParser(description='CapsNet with MNIST')
+    parser.add_argument('--batch-size', type=int, default=4, metavar='N',
+                        help='input batch size for training (default: 64)')
+    # batch_size_수정
+
+    parser.add_argument('--test-batch-size', type=int, default=128, metavar='N',
+                        help='input batch size for testing (default: 1000)')
+    parser.add_argument('--epochs', type=int, default=250, metavar='N',
+                        help='number of epochs to train (default: 250)')
+    parser.add_argument('--n_classes', type=int, default=10, metavar='N',
+                        help='number of classes (default: 10)')
+
+    # if you want change the value                                               
+    parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
+                        # 3e-4 로도 바꿔보기
+                        help='learning rate (default: 0.01)')
+    parser.add_argument('--no-cuda', action='store_true', default=False,
+                        help='disables CUDA training')
+    parser.add_argument('--seed', type=int, default=1, metavar='S',
+                        help='random seed (default: 1)')
+    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+                        help='how many batches to wait before logging training status')
+    parser.add_argument('--routing_iterations', type=int, default=3)
+    parser.add_argument('--with_reconstruction', action='store_true', default=False)
+    # reconstruction은 안쓸거니깐 그냥 false 그대로 놔도 될듯. ㅎ    
+    
+    args = parser.parse_args()
+
+    return args

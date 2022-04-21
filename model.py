@@ -1,5 +1,5 @@
 """
-Implementation of YOLOv3 architecture
+Implementation of CapsyoloNet architecture
 """
 
 import torch
@@ -54,6 +54,9 @@ config = [
     # 26x26x256
     (512, 3, 1),
     # 26x26x512
+    "CapsNet26",
+    # 26x26x512
+
     "S",
     # out_channels = (num_classes + 5) * 3
     # [batch_size, 3, 26, 26, numclasses+5]
@@ -65,6 +68,9 @@ config = [
     # 52x52x128
     (256, 3, 1),
     # 52x52x256
+    "CapsNet52",
+    # 52x52x256
+
     "S",
     # out_channels = (num_classes + 5) * 3
     # [batch_size, 3, 52, 52, numclasses+5]
@@ -133,7 +139,7 @@ class ScalePrediction(nn.Module):
         )
 
 
-class YOLOv3(nn.Module):
+class CapsyoloNet(nn.Module):
     def __init__(self, in_channels=3, num_classes=80):
         super().__init__()
         self.num_classes = num_classes
@@ -143,19 +149,32 @@ class YOLOv3(nn.Module):
     def forward(self, x):
         outputs = []  # for each scale
         route_connections = []
+
+        cnt=0
         for layer in self.layers:
             if isinstance(layer, ScalePrediction):
                 outputs.append(layer(x)) 
                 continue
 
             x = layer(x)
-
+            print(f'len_route_connections:{len(route_connections)}')
             if isinstance(layer, ResidualBlock) and layer.num_repeats == 8:
                 route_connections.append(x)
 
             elif isinstance(layer, nn.Upsample):
                 x = torch.cat([x, route_connections[-1]], dim=1)
                 route_connections.pop()
+
+            elif isinstance(layer, CapsNet):
+                # x = torch.cat([x, route_connections[-1]], dim=1)
+                route_connections[-1] = route_connections[-1]+x
+                # route_connections.pop()
+
+            print(layer)
+            # print(x)
+            print(x.size())
+            print(cnt)
+            cnt+=1
 
         return outputs
 
@@ -193,6 +212,12 @@ class YOLOv3(nn.Module):
                 elif module == "U":
                     layers.append(nn.Upsample(scale_factor=2),)
                     in_channels = in_channels * 3
+                
+                elif module == "CapsNet26":
+                    layers.append(CapsNet(image_size=26,in_channel=512))
+                    
+                elif module == "CapsNet52":
+                    layers.append(CapsNet(image_size=52,in_channel=256))
 
         return layers
 
@@ -200,8 +225,8 @@ class YOLOv3(nn.Module):
 if __name__ == "__main__":
     num_classes = 20
     IMAGE_SIZE = 416
-    model = YOLOv3(num_classes=num_classes)
-    x = torch.randn((2, 3, IMAGE_SIZE, IMAGE_SIZE))
+    model = CapsyoloNet(num_classes=num_classes).cuda()
+    x = torch.randn((2, 3, IMAGE_SIZE, IMAGE_SIZE)).cuda()
     out = model(x)
 
     # print(model)

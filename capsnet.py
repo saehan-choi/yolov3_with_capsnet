@@ -8,38 +8,13 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 from torch.autograd import Variable
 
-import argparse
-
 from torchsummary import summary
 
-parser = argparse.ArgumentParser(description='CapsNet with MNIST')
-parser.add_argument('--batch-size', type=int, default=64, metavar='N',
-                    help='input batch size for training (default: 64)')
-# batch_size_수정
+from config import capsnet_parser
 
-parser.add_argument('--test-batch-size', type=int, default=128, metavar='N',
-                    help='input batch size for testing (default: 1000)')
-parser.add_argument('--epochs', type=int, default=250, metavar='N',
-                    help='number of epochs to train (default: 250)')
-parser.add_argument('--n_classes', type=int, default=10, metavar='N',
-                    help='number of classes (default: 10)')
-
-# if you want change the value                                               
-parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
-                    # 3e-4 로도 바꿔보기
-                    help='learning rate (default: 0.01)')
-parser.add_argument('--no-cuda', action='store_true', default=False,
-                    help='disables CUDA training')
-parser.add_argument('--seed', type=int, default=1, metavar='S',
-                    help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-                    help='how many batches to wait before logging training status')
-parser.add_argument('--routing_iterations', type=int, default=3)
-parser.add_argument('--with_reconstruction', action='store_true', default=False)
-# reconstruction은 안쓸거니깐 그냥 false 그대로 놔도 될듯. ㅎ
-
-args = parser.parse_args()
+args = capsnet_parser()
 n_classes = args.n_classes
+
 epoch_arr = []
 
 def squash(x):
@@ -149,16 +124,16 @@ class PrimaryCapsLayer(nn.Module):
         out = self.conv(input)
         # [1, 1, 28, 28] -> conv 를거치면서 [batch_size, 256(out_channel), 20, 20] 
         # -> out.size() -> [batch_size, 256(out_channel), 6, 6]
-
+        
 
         N, C, H, W = out.size()
         out = out.view(N, self.output_caps, self.output_dim, H, W)
-        
+
         # will output N x OUT_CAPS x OUT_DIM
         out = out.permute(0, 1, 3, 4, 2).contiguous()
         out = out.view(out.size(0), -1, out.size(4))
         out = squash(out)
-
+        
         # [batch_size, 6x6x32, 8]
         # 여기서 비선형성이 추가되어져나온다. squash 라는게 그냥 비선형성을 위한 relu 같은 존재로 보면될듯
         # 마지막 벡터에는 곱해지지않네요 print 찍어보면 암
@@ -167,16 +142,23 @@ class PrimaryCapsLayer(nn.Module):
 
 
 class CapsNet(nn.Module):
-    def __init__(self, routing_iterations, n_classes=n_classes):
+    def __init__(self, routing_iterations=3, n_classes=10, image_size='숫자를 넣어주세요', in_channel='숫자를 넣어주세요'):
+        # input 사이즈를 넣어야합니다.
         super(CapsNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 256, kernel_size=9, stride=1)
-
-        # (20,20,256)
+        self.conv1 = nn.Conv2d(in_channel, 256, kernel_size=9, stride=1)
+        self.image_size = int((image_size-9)/2) + 1
+        self.image_size = int(self.image_size-9/2) + 1
+        
+        # (image_size-kernel_size)/stride + 1
+        #  이값에다가 - 9 / 2 + 1 = 값을 num_primarycaps로 넘겨주면됨. 
+        # (32-9)/1+1 = 24
+        # (24-9)/2+1 = 8
         self.primaryCaps = PrimaryCapsLayer(256, 32, 8, kernel_size=9, stride=2)  # [batch_size, 6x6x32, 8]
         # 32x8 = 256
         # self.num_primaryCaps = 32 * 6 * 6   28 이미지로 들어오면 이거하면 됨.
-        
-        self.num_primaryCaps = 32 * 8 * 8
+        self.num_primaryCaps = 32 * self.image_size * self.image_size
+
+
         # 만약 32이미지로 들어오면 이거하면됨 -> 이거계산은 cnn filter 계산으로 알아내야함.
         # network보면서 do filter calculation
 
@@ -191,15 +173,20 @@ class CapsNet(nn.Module):
         self.digitCaps = CapsLayer(self.num_primaryCaps, 8, n_classes, 16, routing_module)
 
     def forward(self, input):
+        b_size, channel, height, width = input.size()
         x = self.conv1(input)
-        # [batch_size, out_channel, 20(width), 20(height)]
         x = F.relu(x)
         x = self.primaryCaps(x)
         x = self.digitCaps(x)
-        # [batch_size, 10, 16]
-        probs = x.pow(2).sum(dim=2).sqrt()
-        # [batch_size, 10]
-        return x, probs
+
+        x_flatten     = x.flatten()
+        input_flatten = input.flatten()
+    
+        transf = nn.Linear(len(x_flatten),len(input_flatten), device='cuda')
+        output = transf(x_flatten).view(b_size, channel, height, width)
+        
+        
+        return output
 
 
 class ReconstructionNet(nn.Module):
@@ -283,7 +270,7 @@ if __name__ == '__main__':
     train_loader = DataLoader(
         datasets.CIFAR10('../data', train=True, download=True,
                        transform=transforms.Compose([
-                           transforms.Pad(2), transforms.RandomCrop(32),                           
+                           transforms.Pad(120), transforms.RandomCrop(128),                           
                            transforms.ToTensor()
                        ])),
         batch_size=args.batch_size, shuffle=True, **kwargs
@@ -291,17 +278,14 @@ if __name__ == '__main__':
 
     test_loader = DataLoader(
         datasets.CIFAR10('../data', train=False, transform=transforms.Compose([
+            transforms.Pad(120),
+            transforms.Resize((128,128)),
             transforms.ToTensor()
         ])),
         batch_size=args.test_batch_size, shuffle=False, **kwargs)
 
-    model = CapsNet(args.routing_iterations)
+    model = CapsNet(image_size=128, in_channel=24)
     # routing_iterations == 3 
-
-    if args.with_reconstruction:
-        reconstruction_model = ReconstructionNet(16, 10)
-        reconstruction_alpha = 0.0005
-        model = CapsNetWithReconstruction(model, reconstruction_model)
 
     if args.cuda:
         model.cuda()
@@ -312,85 +296,70 @@ if __name__ == '__main__':
 
     def train(epoch):
         model.train()
-        summary(model, (3, 32, 32))
+        # print(model)
+        summary(model, (24, 128, 128))
+
         for batch_idx, (data, target) in enumerate(train_loader):
             if args.cuda:
                 data, target = data.cuda(), target.cuda()
             data, target = data, target
-            # data, target = Variable(data), Variable(target, requires_grad=False)
             optimizer.zero_grad()
-            # print(data.size())
-            # [batch_size, 1, 28, 28]
-            # 채널이 1개인것도 염두해두어야함.
-            # reconstruction은 없어서 else로 넘어감
-            if args.with_reconstruction:
-                output, probs = model(data, target)
-                reconstruction_loss = F.mse_loss(output, data.view(-1, 784))
-                margin_loss = loss_fn(probs, target)
-                loss = reconstruction_alpha * reconstruction_loss + margin_loss
-            else:
-                output, probs = model(data)
-                # print(output.size())
-                # [128, 10, 16]
-                # print(probs.size())
-                # [128, 10]
-                loss = loss_fn(probs, target)
-            loss.backward()
-            optimizer.step()
-            if batch_idx % args.log_interval == 0:
 
-                print('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f}'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset), 
-                    100. * batch_idx / len(train_loader), loss.data))
+            print(f'input_data_size:{data.size()}')
+            output, probs = model(data)
+            print(f'output_data_size:{probs.size()}')
 
-    def test():
-        with torch.no_grad():
-            model.eval()
-            test_loss = 0
-            correct = 0
+            # loss = loss_fn(probs, target)
+            # loss.backward()
+            # optimizer.step()
+            # if batch_idx % args.log_interval == 0:
 
-            for data, target in test_loader:
-                if args.cuda:
-                    data, target = data.cuda(), target.cuda()
+            #     print('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f}'.format(
+            #         epoch, batch_idx * len(data), len(train_loader.dataset), 
+            #         100. * batch_idx / len(train_loader), loss.data))
 
-                if args.with_reconstruction:
-                    output, probs = model(data, target)
-                    reconstruction_loss = F.mse_loss(output, data.view(-1, 784), size_average=False).data[0]
-                    test_loss += loss_fn(probs, target, size_average=False).item()
-                    test_loss += reconstruction_alpha * reconstruction_loss
+    # def test():
+    #     with torch.no_grad():
+    #         model.eval()
+    #         test_loss = 0
+    #         correct = 0
 
-                else:
-                    output, probs = model(data)
-                    test_loss += loss_fn(probs, target, size_average=False).item()
-                    # loss_fn -> margin_loss
+    #         for data, target in test_loader:
+    #             if args.cuda:
+    #                 data, target = data.cuda(), target.cuda()
 
-                pred = probs.data.max(1, keepdim=True)[1]  # get the index of the max probability
-                #     probs:tensor([[0.0259, 0.0423, 0.0937,  ..., 0.0304, 0.0151, 0.0750],
-                #     [0.8676, 0.0431, 0.0692,  ..., 0.0208, 0.0116, 0.0254]......
+                
+    #             output, probs = model(data)
+    #             test_loss += loss_fn(probs, target, size_average=False).item()
+    #             # loss_fn -> margin_loss
 
-                # pred:tensor([[3],
-                # [0],
-                # [1], ....
-                # 이중에 최고의 probability를 뽑는것
-                correct += pred.eq(target.data.view_as(pred)).cpu().sum()
-                # pytorch에서 지원하는 기능 eq -> equal로서  pred와 target이 같은비율을 보려고 한거네요.
+    #             pred = probs.data.max(1, keepdim=True)[1]  # get the index of the max probability
+    #             #     probs:tensor([[0.0259, 0.0423, 0.0937,  ..., 0.0304, 0.0151, 0.0750],
+    #             #     [0.8676, 0.0431, 0.0692,  ..., 0.0208, 0.0116, 0.0254]......
 
-            test_loss /= len(test_loader.dataset)
-            print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-                test_loss, correct, len(test_loader.dataset),
-                100. * correct / len(test_loader.dataset)))
-            epoch_arr.append((100. * correct / len(test_loader.dataset)).item())
-            return test_loss
+    #             # pred:tensor([[3],
+    #             # [0],
+    #             # [1], ....
+    #             # 이중에 최고의 probability를 뽑는것
+    #             correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+    #             # pytorch에서 지원하는 기능 eq -> equal로서  pred와 target이 같은비율을 보려고 한거네요.
 
-    args.epochs = 250
+    #         test_loss /= len(test_loader.dataset)
+    #         print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    #             test_loss, correct, len(test_loader.dataset),
+    #             100. * correct / len(test_loader.dataset)))
+    #         epoch_arr.append((100. * correct / len(test_loader.dataset)).item())
+    #         return test_loss
+
+    
     for epoch in range(1, args.epochs + 1):
         train(epoch)
-        test_loss = test()
-        scheduler.step(test_loss)
-        print(epoch_arr)
-        torch.save(model.state_dict(),
-                   '{:03d}_model_dict_{}routing_reconstruction{}.pt'.format(epoch, args.routing_iterations,
-                                                                             args.with_reconstruction))
+    #     test_loss = test()
+    #     scheduler.step(test_loss)
+    #     print(epoch_arr)
+    #     torch.save(model.state_dict(),
+    #                '{:03d}_model_dict_{}routing_reconstruction{}.pt'.format(epoch, args.routing_iterations,
+    #                                                                          args.with_reconstruction))
 
 
 

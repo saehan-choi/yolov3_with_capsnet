@@ -9,7 +9,7 @@ from torch import optim
 from PIL import Image
 import torchvision.transforms as transforms
 
-model = YOLOv3(num_classes=config.NUM_CLASSES).to(config.DEVICE)
+model = CapsyoloNet(num_classes=config.NUM_CLASSES).to(config.DEVICE)
 
 optimizer = optim.Adam(
         model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY
@@ -67,3 +67,4 @@ for i in range(batch_size):
         bboxes[i], iou_threshold=config.MAP_IOU_THRESH, threshold=config.NMS_IOU_THRESH, box_format="midpoint",
     )
     plot_image(x[i].permute(1,2,0).detach().cpu(), nms_boxes)
+

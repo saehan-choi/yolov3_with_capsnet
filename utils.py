@@ -326,19 +326,6 @@ def get_evaluation_bboxes(
 
 
 def cells_to_bboxes(predictions, anchors, S, is_preds=True):
-    """
-    Scales the predictions coming from the model to
-    be relative to the entire image such that they for example later
-    can be plotted or.
-    INPUT:
-    predictions: tensor of size (N, 3, S, S, num_classes+5)
-    anchors: the anchors used for the predictions
-    S: the number of cells the image is divided in on the width (and height)
-    is_preds: whether the input is predictions or the true bounding boxes
-    OUTPUT:
-    converted_bboxes: the converted boxes of sizes (N, num_anchors, S, S, 1+5) with class index,
-                      object score, bounding box coordinates
-    """
     BATCH_SIZE = predictions.shape[0]
     # predictions => [1, 3, 52, 52, 25], [1, 3, 26, 26, 25], [1, 3, 13, 13, 25]
     num_anchors = len(anchors)
